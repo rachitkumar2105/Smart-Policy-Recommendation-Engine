@@ -1,0 +1,2 @@
+Method,Name,Error,Occurrences
+POST,/api/v1/recommend,HTTPError('429 Client Error: Too Many Requests for url: /api/v1/recommend'),945

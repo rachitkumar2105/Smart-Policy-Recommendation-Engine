@@ -1,0 +1,5 @@
+[run]
+concurrency = greenlet
+source = app
+omit =
+    app/seed.py
