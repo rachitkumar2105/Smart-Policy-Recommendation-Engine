@@ -15,6 +15,12 @@ class RiskProfileRequest(BaseModel):
     vehicle_value: float = Field(default=0, ge=0)
     owns_property: bool = False
     property_value: float = Field(default=0, ge=0)
+    # Inputs for the ML charges-prediction signal (see backend/ml/). All default
+    # so existing callers of this contract keep working unchanged.
+    sex: Literal["male", "female"] = "male"
+    bmi: float = Field(default=25.0, ge=10, le=60)
+    children: int = Field(default=0, ge=0, le=10)
+    region: Literal["northeast", "northwest", "southeast", "southwest"] = "southeast"
 
 
 class RecommendationItem(BaseModel):
@@ -24,6 +30,9 @@ class RecommendationItem(BaseModel):
     policy_type: str
     suitability_score: float
     final_premium: float
+    rule_based_adjustment: float
+    ml_predicted_adjustment: float
+    ml_predicted_charges: float
     reasoning: str
 
 

@@ -49,7 +49,13 @@ async def test_recommend_returns_eligible_policy(client, seeded_policy):
     rec = body["recommendations"][0]
     assert rec["policy_name"] == "Test Auto Policy"
     assert rec["rank"] == 1
-    assert rec["final_premium"] == 1000.0
+    # final_premium is now base_premium blended with the ML-predicted
+    # adjustment (see app/services/scoring.calculate_hybrid_premium), so it's
+    # no longer a fixed value — assert the components it's built from instead.
+    assert rec["rule_based_adjustment"] == 0.0  # VALID_PROFILE has no risk flags set
+    expected_premium = round(1000.0 * (1.0 + rec["ml_predicted_adjustment"]), 2)
+    assert rec["final_premium"] == expected_premium
+    assert rec["ml_predicted_charges"] > 0
 
 
 @pytest.mark.asyncio

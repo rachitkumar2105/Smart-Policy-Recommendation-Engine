@@ -5,16 +5,17 @@ services:
       - "8000:8000"
     environment:
       DATABASE_URL: sqlite+aiosqlite:////app/data/spre.db
-      CORS_ALLOW_ORIGINS: http://localhost:8501
+      CORS_ALLOW_ORIGINS: http://localhost:5173
     volumes:
       - spre-data:/app/data
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        VITE_BACKEND_URL: http://localhost:8000
     ports:
-      - "8501:8501"
-    environment:
-      BACKEND_URL: http://backend:8000
+      - "5173:80"
     depends_on:
       - backend
 

@@ -1,5 +1,6 @@
 [run]
 concurrency = greenlet
-source = app
+source = app,ml
 omit =
     app/seed.py
+    ml/train.py

@@ -134,6 +134,23 @@ def calculate_premium(base_premium: float, profile: RiskProfileRequest) -> float
     return round(base_premium * coefficient, 2)
 
 
+def calculate_hybrid_premium(
+    base_premium: float, profile: RiskProfileRequest, ml_predicted_adjustment: float
+) -> tuple[float, float]:
+    """Blend the deterministic rule-based coefficient with the ML adjustment.
+
+    Returns (final_premium, rule_based_adjustment) so both components can be
+    reported separately in the API response — the ML signal augments the
+    rule-based one, it never replaces or hides it.
+    """
+    rule_based_adjustment = calculate_risk_coefficient(profile) - 1.0
+    combined_coefficient = max(
+        0.5, 1.0 + rule_based_adjustment + ml_predicted_adjustment
+    )
+    final_premium = round(base_premium * combined_coefficient, 2)
+    return final_premium, round(rule_based_adjustment, 4)
+
+
 def is_eligible(
     profile: RiskProfileRequest, min_age: int, max_age: int, min_income: float
 ) -> bool:

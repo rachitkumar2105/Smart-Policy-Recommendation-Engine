@@ -3,7 +3,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Customer, Policy, RecommendationLog
 from app.schemas import RecommendationItem, RiskProfileRequest
-from app.services.scoring import calculate_premium, is_eligible, score_policy
+from app.services.scoring import calculate_hybrid_premium, is_eligible, score_policy
+from ml.inference import ml_adjustment
 
 TOP_N = 5
 
@@ -41,17 +42,30 @@ async def generate_recommendations(
 
     eligible = await get_eligible_policies(db, profile)
 
+    # The ML signal depends only on the profile, not the policy, so it's
+    # computed once per request and reused across candidates.
+    predicted_charges, ml_adj = ml_adjustment(
+        age=profile.age,
+        sex=profile.sex,
+        bmi=profile.bmi,
+        children=profile.children,
+        is_smoker=profile.is_smoker,
+        region=profile.region,
+    )
+
     scored = []
     for policy in eligible:
         result = score_policy(profile, policy.policy_type)
-        premium = calculate_premium(float(policy.base_premium), profile)
-        scored.append((policy, result, premium))
+        premium, rule_adj = calculate_hybrid_premium(
+            float(policy.base_premium), profile, ml_adj
+        )
+        scored.append((policy, result, premium, rule_adj))
 
     scored.sort(key=lambda t: t[1].score, reverse=True)
     top = scored[:TOP_N]
 
     items: list[RecommendationItem] = []
-    for rank, (policy, result, premium) in enumerate(top, start=1):
+    for rank, (policy, result, premium, rule_adj) in enumerate(top, start=1):
         log = RecommendationLog(
             customer_id=customer.customer_id,
             policy_id=policy.policy_id,
@@ -69,6 +83,9 @@ async def generate_recommendations(
                 policy_type=policy.policy_type,
                 suitability_score=result.score,
                 final_premium=premium,
+                rule_based_adjustment=rule_adj,
+                ml_predicted_adjustment=ml_adj,
+                ml_predicted_charges=predicted_charges,
                 reasoning=result.reasoning,
             )
         )
