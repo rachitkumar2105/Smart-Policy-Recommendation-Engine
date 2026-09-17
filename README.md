@@ -62,7 +62,7 @@ Everything below was actually built and run on this machine. Numbers in the
 | Rate limiting | slowapi |
 | Containerization | Docker + docker-compose |
 | CI | GitHub Actions (ruff + black + pytest with coverage gate) — see `.github/workflows/ci.yml` |
-| Observability | `prometheus-fastapi-instrumentator` + `/metrics`, structured JSON logs |
+| Observability | `prometheus-fastapi-instrumentator` + `/metrics`, structured JSON logs, Prometheus + Grafana |
 | Dependency scanning | pip-audit |
 
 ## Database Schema
@@ -148,7 +148,10 @@ running.
   `schemas.py`), Alembic migrations from day one, API versioned under `/api/v1/`.
 - **Observability**: structured JSON logs via `python-json-logger`, Prometheus
   metrics exposed at `/metrics`, `/health` endpoint with a real DB connectivity
-  check.
+  check, plus a Prometheus + Grafana stack (`monitoring/`) with a pre-provisioned
+  dashboard (request rate by endpoint, error rate, p50/p95/p99 latency, total
+  requests, backend-up status) — datasource and dashboard both auto-provisioned
+  on startup, no manual clicking required.
 - **Auditability**: `recommendation_logs` is append-only — no application code path
   updates or deletes rows in that table.
 
@@ -188,18 +191,25 @@ Open http://localhost:8501.
 docker compose up --build
 ```
 
-This builds and starts both services. The backend runs `alembic upgrade head`,
-seeds the catalog if empty, then starts uvicorn with 2 workers; SQLite data
-persists in the `spre-data` named volume. Once up:
+This builds and starts four services: `backend`, `frontend`, `prometheus`, and
+`grafana`. The backend runs `alembic upgrade head`, seeds the catalog if empty,
+then starts uvicorn with 2 workers; SQLite data persists in the `spre-data` named
+volume. Once up:
 
 - Frontend: http://localhost:8501
 - Backend docs: http://localhost:8000/docs
 - Health: http://localhost:8000/health
+- Prometheus: http://localhost:9090
+- Grafana dashboard: http://localhost:3000/d/spre-backend (anonymous viewer access
+  enabled for local convenience; login `admin` / `admin` for edit access)
 
-Verified locally: both containers build and start cleanly, `/health` returns
+Verified locally: all four containers build and start cleanly, `/health` returns
 `{"status": "ok", "database": "ok"}`, `/api/v1/policies` returns the 20 seeded
-policies, and a full request submitted through the Streamlit UI in a browser
-returns ranked recommendations end-to-end.
+policies, a full request submitted through the Streamlit UI in a browser returns
+ranked recommendations end-to-end, Prometheus shows the `spre-backend` scrape
+target as `up`, and the Grafana dashboard renders live panels (request rate,
+latency percentiles, total requests, backend-up status) against real traffic
+generated during verification.
 
 ```bash
 docker compose down   # stop and remove containers (keeps the named volume)
@@ -334,6 +344,10 @@ backend/
 frontend/
   app.py             # Streamlit UI
   Dockerfile
+monitoring/
+  prometheus/prometheus.yml            # scrape config targeting backend:8000/metrics
+  grafana/provisioning/                # auto-provisioned datasource + dashboard
+  grafana/dashboards/spre-dashboard.json
 docker-compose.yml
 .github/workflows/ci.yml
 docs/                # real load-test CSV output
