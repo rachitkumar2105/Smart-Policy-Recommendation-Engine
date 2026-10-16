@@ -209,17 +209,28 @@ actual underwriting data**; the model's predictions are illustrative, not a clai
 of production-grade actuarial accuracy.
 
 **Method**: 80/20 train/test split (`random_state=42`, 1,070 train / 268 test rows).
-Two models trained and evaluated on the same held-out test set —
-`backend/ml/train.py`:
+Two models are compared by mean 5-fold cross-validated R² on the training rows only
+(`KFold`, `shuffle=True`, `random_state=42`) — `backend/ml/train.py`:
 
-| Model | R² (test) | MAE (test) | RMSE (test) |
+| Model | CV R² mean (train, 5-fold) | CV R² std |
+|---|---|---|
+| Linear Regression | 0.7389 | 0.0311 |
+| Gradient Boosting Regressor | **0.8371** | 0.0261 |
+
+**Gradient Boosting Regressor was selected** on that CV score. Only the winner was
+then refit on all training rows and evaluated once on the held-out test set:
+
+| Selected model | R² (test) | MAE (test) | RMSE (test) |
 |---|---|---|---|
-| Linear Regression | 0.7836 | $4,181.19 | $5,796.28 |
-| Gradient Boosting Regressor | **0.8712** | **$2,486.43** | **$4,471.16** |
+| Gradient Boosting Regressor | 0.8712 | $2,486.43 | $4,471.16 |
 
-**Gradient Boosting Regressor was selected** — it scored higher on every metric on
-the real test set (the decision was made from these numbers, not pre-chosen).
-Both results are consistent with commonly published benchmarks for this dataset.
+**Selection-method change (honest note):** an earlier version of `train.py` scored
+both models on the test split and picked the winner from those scores (test R²:
+Gradient Boosting 0.8712, Linear Regression 0.7836), so the reported test R² had been
+used for selection. The current procedure keeps the test set out of selection. The
+winner is unchanged, and its test R² is still 0.8712 because refitting on the same
+training rows with the same seed produced an identical model. The cross-validated
+R² (0.8371) is the more conservative estimate of generalization.
 
 **Integration**: `backend/ml/inference.py` loads the persisted model
 (`ml/model.joblib`) once and exposes `ml_adjustment(...)`, which predicts annual
@@ -279,7 +290,7 @@ cd backend
 pytest --cov=app --cov=ml --cov-report=term-missing --cov-fail-under=85
 ```
 
-**Actual result on this machine: 45 tests passed, 95.6% coverage** (gate set at
+**Actual result on this machine: 48 tests passed, 95.6% coverage** (gate set at
 85%, now covering both `app` and `ml`). Breakdown:
 
 - `tests/test_scoring.py` — 23 unit tests against the pure scoring/premium
@@ -287,17 +298,20 @@ pytest --cov=app --cov=ml --cov-report=term-missing --cov-fail-under=85
   stacking, premium calculation including the zero-base-premium edge case, and
   scoring behavior per policy type (smoker/chronic-illness penalties, vehicle/
   property value rewards, score clamping, unknown-policy-type fallback).
-- `tests/test_api.py` — 13 integration tests hitting the full FastAPI app via
+- `tests/test_api.py` — 14 integration tests hitting the full FastAPI app via
   `httpx.AsyncClient` against a throwaway SQLite test database: happy path,
   ineligible-age exclusion, below-min-income exclusion, empty-catalog case,
   Pydantic validation rejections (422), audit-log persistence, 404 for an unknown
-  customer, and the `/metrics` endpoint.
-- `tests/test_ml_integration.py` — 9 tests: ML inference determinism (same input
+  customer, the `/metrics` endpoint, and the rule/ML premium blend checked against a
+  mocked model (`ml_adjustment` patched to `(8000.0, 0.10)`, expecting a premium of
+  exactly 1100.0 on the 1000 base policy).
+- `tests/test_ml_integration.py` — 11 tests: ML inference determinism (same input
   → identical output), no crash on extreme BMI or age-eligibility-boundary inputs,
-  a smoker predicted higher than a non-smoker (sanity direction check), and the
+  a smoker predicted higher than a non-smoker (sanity direction check), the
   hybrid premium blend (zero ML adjustment matches rule-based-only, positive
   adjustment increases premium, combined coefficient floored at 0.5× base so it
-  can never invert, both components reported separately).
+  can never invert, both components reported separately), and 2 pinned outputs of
+  the committed model for fixed inputs (re-record these if the model is retrained).
 
 Coverage note: `app/seed.py` and `ml/train.py` are excluded from the coverage gate
 (`.coveragerc`) — both are one-off scripts exercised manually, not through pytest.
@@ -341,7 +355,7 @@ an older `fastapi` pin, and in `python-dotenv`). These were fixed by upgrading:
 `starlette<1.0.0` pin, which was blocking the fix). Two dev-only tools (`black`,
 `pytest`) were also flagged and upgraded (`pytest-asyncio` had to move to 1.4.0 to
 stay compatible with the new pytest). **Re-running `pip-audit` after the upgrades
-reports zero known vulnerabilities**, and the full test suite (36/36 at that earlier Phase 1 baseline; 45 tests today) still passes
+reports zero known vulnerabilities**, and the full test suite (36/36 at that earlier Phase 1 baseline; 48 tests today) still passes
 against the upgraded stack — verified with a from-scratch venv install of the
 pinned `requirements-dev.txt`, not just the environment that happened to already
 have the packages.
@@ -440,7 +454,7 @@ backend/
     train.py                    # trains + evaluates Linear Regression vs Gradient Boosting
     inference.py                  # loads model.joblib, exposes ml_adjustment()
     model.joblib                    # persisted, selected (Gradient Boosting) model
-    metrics.json                      # real R²/MAE/RMSE for both candidates
+    metrics.json                      # CV R² for both candidates + held-out test metrics for the winner
   alembic/                    # migrations (schema is owned here, not hand-edited)
   tests/                         # pytest suite (including test_ml_integration.py)
   locustfile.py                    # load test

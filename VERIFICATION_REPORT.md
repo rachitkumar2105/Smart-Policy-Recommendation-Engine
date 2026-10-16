@@ -1,6 +1,6 @@
 # SPRE Build Verification Report
 
-> Phase 1 baseline audit (36 backend tests, 94.93% coverage with `--cov=app`). Superseded by the current suite: 45 backend tests, 95.56% coverage with `--cov=app --cov=ml`, and 10 frontend tests.
+> Phase 1 baseline audit (36 backend tests, 94.93% coverage with `--cov=app`). Superseded by the current suite: 48 backend tests, 95.56% coverage with `--cov=app --cov=ml`, and 10 frontend tests.
 
 ## Summary
 28/29 items DONE, 1 PARTIAL, 0 NOT DONE
