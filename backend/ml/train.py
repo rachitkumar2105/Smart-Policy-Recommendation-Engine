@@ -6,9 +6,10 @@ commonly used for regression teaching (e.g. via the stedy/Machine-Learning-
 with-R-datasets GitHub repo).
 
 Trains a Linear Regression baseline and a Gradient Boosting Regressor on an
-80/20 train/test split, reports real R²/MAE/RMSE for both on the held-out
-test set, and persists whichever one actually scores higher R² on that test
-set (no pre-decided winner).
+80/20 train/test split. The winner is chosen by mean 5-fold cross-validated R²
+on the training rows only; only that winner is then refit on all training rows
+and evaluated once on the held-out test set (no pre-decided winner, and the
+test set plays no part in selection).
 
 Run with: python -m ml.train
 """
@@ -23,7 +24,7 @@ from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_absolute_error, r2_score, root_mean_squared_error
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import KFold, cross_val_score, train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder
 
@@ -71,15 +72,26 @@ def main() -> None:
         ),
     }
 
-    results = {}
+    cv = KFold(n_splits=5, shuffle=True, random_state=42)
+    cv_results = {}
     for name, pipeline in candidates.items():
-        pipeline.fit(X_train, y_train)
-        results[name] = evaluate(pipeline, X_test, y_test)
-        print(f"{name}: {results[name]}")
+        scores = cross_val_score(pipeline, X_train, y_train, cv=cv, scoring="r2")
+        cv_results[name] = {
+            "cv_r2_mean": round(float(scores.mean()), 4),
+            "cv_r2_std": round(float(scores.std()), 4),
+        }
+        print(f"{name} (5-fold CV on train): {cv_results[name]}")
 
-    best_name = max(results, key=lambda n: results[n]["r2"])
+    best_name = max(cv_results, key=lambda n: cv_results[n]["cv_r2_mean"])
     best_pipeline = candidates[best_name]
-    print(f"\nSelected: {best_name} (highest test R²: {results[best_name]['r2']})")
+    print(
+        f"\nSelected: {best_name} "
+        f"(highest mean CV R²: {cv_results[best_name]['cv_r2_mean']})"
+    )
+
+    best_pipeline.fit(X_train, y_train)
+    test_metrics = evaluate(best_pipeline, X_test, y_test)
+    print(f"Held-out test metrics for {best_name}: {test_metrics}")
 
     joblib.dump(best_pipeline, MODEL_PATH)
 
@@ -97,8 +109,10 @@ def main() -> None:
                 "test_rows": len(X_test),
                 "test_size": 0.2,
                 "random_state": 42,
-                "candidates": results,
+                "cv_folds": 5,
+                "candidates_cv": cv_results,
                 "selected_model": best_name,
+                "selected_test_metrics": test_metrics,
                 "normalization": normalization,
             },
             indent=2,

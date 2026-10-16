@@ -4,19 +4,23 @@
   "test_rows": 268,
   "test_size": 0.2,
   "random_state": 42,
-  "candidates": {
+  "cv_folds": 5,
+  "candidates_cv": {
     "linear_regression": {
-      "r2": 0.7836,
-      "mae": 4181.19,
-      "rmse": 5796.28
+      "cv_r2_mean": 0.7389,
+      "cv_r2_std": 0.0311
     },
     "gradient_boosting": {
-      "r2": 0.8712,
-      "mae": 2486.43,
-      "rmse": 4471.16
+      "cv_r2_mean": 0.8371,
+      "cv_r2_std": 0.0261
     }
   },
   "selected_model": "gradient_boosting",
+  "selected_test_metrics": {
+    "r2": 0.8712,
+    "mae": 2486.43,
+    "rmse": 4471.16
+  },
   "normalization": {
     "charges_mean": 13346.09,
     "charges_std": 12013.89
