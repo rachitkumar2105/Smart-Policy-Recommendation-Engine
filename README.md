@@ -69,9 +69,9 @@ Everything below was actually built and run on this machine. Numbers in the
 | Testing | pytest, `httpx.AsyncClient`, Locust, Vitest + React Testing Library |
 | Rate limiting | slowapi |
 | Containerization | Docker + docker-compose |
-| CI | GitHub Actions — backend job (ruff + black + pytest with coverage gate + pip-audit) and frontend job (lint + vitest + build) — see `.github/workflows/ci.yml` |
+| CI | GitHub Actions — backend job (ruff + black + pytest with coverage gate + pip-audit + backend Docker image build) and frontend job (lint + vitest + build) — see `.github/workflows/ci.yml` |
 | Observability | `prometheus-fastapi-instrumentator` + `/metrics`, structured JSON logs, Prometheus + Grafana |
-| Dependency scanning | pip-audit (backend), npm audit (frontend) |
+| Dependency scanning | pip-audit (backend) |
 
 ## Database Schema
 
@@ -276,7 +276,7 @@ docker compose down   # stop and remove containers (keeps the named volume)
 
 ```bash
 cd backend
-pytest --cov=app --cov-report=term-missing --cov-fail-under=85
+pytest --cov=app --cov=ml --cov-report=term-missing --cov-fail-under=85
 ```
 
 **Actual result on this machine: 45 tests passed, 95.6% coverage** (gate set at
@@ -341,7 +341,7 @@ an older `fastapi` pin, and in `python-dotenv`). These were fixed by upgrading:
 `starlette<1.0.0` pin, which was blocking the fix). Two dev-only tools (`black`,
 `pytest`) were also flagged and upgraded (`pytest-asyncio` had to move to 1.4.0 to
 stay compatible with the new pytest). **Re-running `pip-audit` after the upgrades
-reports zero known vulnerabilities**, and the full test suite (36/36) still passes
+reports zero known vulnerabilities**, and the full test suite (36/36 at that earlier Phase 1 baseline; 45 tests today) still passes
 against the upgraded stack — verified with a from-scratch venv install of the
 pinned `requirements-dev.txt`, not just the environment that happened to already
 have the packages.
