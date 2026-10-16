@@ -2,9 +2,11 @@
 
 A 3-tier application that simulates an insurance underwriting workflow: it collects a
 customer's risk profile, hard-filters ineligible policies, scores the remaining
-candidates on suitability, calculates a risk-adjusted premium, and returns a ranked,
-explainable recommendation. Every recommendation is written to an immutable audit
-log.
+candidates on suitability, calculates a risk-adjusted premium (a deterministic
+rule-based coefficient blended with a trained ML signal, both reported separately),
+and returns a ranked, explainable recommendation. Every recommendation is written to
+an immutable audit log. The frontend is a React + TypeScript SPA; the backend is
+async FastAPI.
 
 Everything below was actually built and run on this machine. Numbers in the
 "Load Testing" section are real Locust output, not estimates.
