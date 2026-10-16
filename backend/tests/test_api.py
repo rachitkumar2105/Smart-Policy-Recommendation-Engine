@@ -49,13 +49,27 @@ async def test_recommend_returns_eligible_policy(client, seeded_policy):
     rec = body["recommendations"][0]
     assert rec["policy_name"] == "Test Auto Policy"
     assert rec["rank"] == 1
-    # final_premium is now base_premium blended with the ML-predicted
-    # adjustment (see app/services/scoring.calculate_hybrid_premium), so it's
-    # no longer a fixed value — assert the components it's built from instead.
-    assert rec["rule_based_adjustment"] == 0.0  # VALID_PROFILE has no risk flags set
-    expected_premium = round(1000.0 * (1.0 + rec["ml_predicted_adjustment"]), 2)
-    assert rec["final_premium"] == expected_premium
     assert rec["ml_predicted_charges"] > 0
+
+
+@pytest.mark.asyncio
+async def test_recommend_blends_rule_and_ml_adjustments(
+    client, seeded_policy, monkeypatch
+):
+    # Patch where the recommender looks the function up (it does
+    # `from ml.inference import ml_adjustment`), not in ml.inference.
+    monkeypatch.setattr(
+        "app.services.recommender.ml_adjustment", lambda **kwargs: (8000.0, 0.10)
+    )
+    resp = await client.post("/api/v1/recommend", json=VALID_PROFILE)
+    assert resp.status_code == 200
+    rec = resp.json()["recommendations"][0]
+    # base_premium 1000 (seeded_policy), no risk flags => rule adjustment 0.0.
+    # scoring.py: base * max(0.5, 1 + rule + ml) = 1000 * (1 + 0.0 + 0.10) = 1100.0
+    assert rec["final_premium"] == pytest.approx(1100.0)
+    assert rec["rule_based_adjustment"] == 0.0
+    assert rec["ml_predicted_adjustment"] == 0.1
+    assert rec["ml_predicted_charges"] == 8000.0
 
 
 @pytest.mark.asyncio

@@ -105,3 +105,27 @@ class TestHybridPremium:
         )
         assert rule_adj == 0.15
         assert premium == 1250.0  # 1000 * (1 + 0.15 + 0.10)
+
+
+class TestPinnedModelOutputs:
+    # Values recorded from running the committed model.joblib on fixed inputs.
+    # If the model is retrained these must be re-recorded on purpose.
+    def test_non_smoker_baseline_profile(self):
+        assert ml_adjustment(
+            age=30,
+            sex="male",
+            bmi=25,
+            children=0,
+            is_smoker=False,
+            region="southeast",
+        ) == (6001.74, -0.0734)
+
+    def test_smoker_high_bmi_profile(self):
+        assert ml_adjustment(
+            age=45,
+            sex="male",
+            bmi=32,
+            children=2,
+            is_smoker=True,
+            region="southeast",
+        ) == (43016.45, 0.2964)
